@@ -7,17 +7,13 @@ def find_straight_lines(image_path, color_lower, color_upper, min_length):
     image = cv2.imread(image_path)
 
     # Convert the image to the HSV color space
-    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Define a color range in HSV
-    lower_bound = np.array(color_lower, dtype=np.uint8)
-    upper_bound = np.array(color_upper, dtype=np.uint8)
-
-    # Create a mask to identify the specified color
-    color_mask = cv2.inRange(hsv, lower_bound, upper_bound)
+    # Apply thresholding to separate symbols from the background
+    ret, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Find contours in the mask
-    contours, _ = cv2.findContours(color_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Initialize an empty list to store the detected lines
     detected_lines = []
@@ -44,7 +40,7 @@ def find_straight_lines(image_path, color_lower, color_upper, min_length):
 
 
 # Specify the path to your image
-image_path = "your_image.jpg"
+image_path = "Inputs/DetReduced.png"
 
 # Specify the color range (in HSV format) and minimum line length
 color_lower = [0, 100, 100]  # Lower bound of the color range

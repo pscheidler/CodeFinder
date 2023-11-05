@@ -1,3 +1,7 @@
+# Copied from OpenCV help docs, modified for purpose
+
+# Eyedropper says the HSV of the lines is at 20, 100, 18 to 22, 69, 20. HSV of the paper is 31, 32, 73 to 33, 50, 58
+# This shows good detection with range of 11, 55, 149 to 43, 122, 243
 from __future__ import print_function
 import cv2 as cv
 import argparse
@@ -69,28 +73,51 @@ def on_high_V_thresh_trackbar(val):
 
 
 parser = argparse.ArgumentParser(description='Code for Thresholding Operations using inRange tutorial.')
+parser.add_argument('-i', '--image', help='Specify an image, instead of using the camera.',
+                    default="Inputs/DetReduced.png", type=str)
 parser.add_argument('--camera', help='Camera divide number.', default=0, type=int)
+parser.add_argument('--grey', help='Use greyscale detection instead of HSB.', action="store_true")
 args = parser.parse_args()
-cap = cv.VideoCapture(args.camera)
+args.grey = True
+if args.image is None:
+    cap = cv.VideoCapture(args.camera)
+else:
+    frame = cv.imread(args.image)
+    cap = None
 cv.namedWindow(window_capture_name)
 cv.namedWindow(window_detection_name)
+if args.grey:
+    max_value_H = 255
+    low_H = 11
 cv.createTrackbar(low_H_name, window_detection_name, low_H, max_value_H, on_low_H_thresh_trackbar)
-cv.createTrackbar(high_H_name, window_detection_name, high_H, max_value_H, on_high_H_thresh_trackbar)
+if not args.grey:
+    cv.createTrackbar(high_H_name, window_detection_name, high_H, max_value_H, on_high_H_thresh_trackbar)
 cv.createTrackbar(low_S_name, window_detection_name, low_S, max_value, on_low_S_thresh_trackbar)
-cv.createTrackbar(high_S_name, window_detection_name, high_S, max_value, on_high_S_thresh_trackbar)
+if not args.grey:
+    cv.createTrackbar(high_S_name, window_detection_name, high_S, max_value, on_high_S_thresh_trackbar)
 cv.createTrackbar(low_V_name, window_detection_name, low_V, max_value, on_low_V_thresh_trackbar)
-cv.createTrackbar(high_V_name, window_detection_name, high_V, max_value, on_high_V_thresh_trackbar)
-while True:
+if not args.grey:
+    cv.createTrackbar(high_V_name, window_detection_name, high_V, max_value, on_high_V_thresh_trackbar)
 
-    ret, frame = cap.read()
+while True:
+    if cap is not None:
+        ret, frame = cap.read()
     if frame is None:
         break
-    frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-    frame_threshold = cv.inRange(frame_HSV, (low_H, low_S, low_V), (high_H, high_S, high_V))
+    if args.grey:
+        frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
+        # frame_threshold = cv.adaptiveThreshold(frame_HSV, 255, cv.ADAPTIVE_THRESH_MEAN_C,
+        #                            cv.THRESH_BINARY_INV, 11, 2)
+        _, frame_threshold = cv.threshold(frame_HSV, low_H, low_S, cv.THRESH_BINARY_INV)
+    else:
+        frame_HSV = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+        frame_threshold = cv.inRange(frame_HSV, (low_H, low_S, low_V), (high_H, high_S, high_V))
 
-    cv.imshow(window_capture_name, frame)
+    cv.imshow(window_capture_name, frame_HSV)
     cv.imshow(window_detection_name, frame_threshold)
 
     key = cv.waitKey(30)
+    if key == ord('s'):
+        cv.imwrite("saved_image.png", frame_threshold)
     if key == ord('q') or key == 27:
         break
