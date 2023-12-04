@@ -9,7 +9,7 @@ def find_straight_lines(image_path, color_lower, color_upper, min_length):
     # Convert the image to the HSV color space
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # Apply thresholding to separate symbols from the background
+    # Apply thresolding to separate symbols from the background
     ret, mask = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # Find contours in the mask

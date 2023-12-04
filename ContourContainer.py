@@ -12,15 +12,14 @@ class ContourNotFound(Exception):
 
 @dataclasses.dataclass
 class ContourElement:
-    contour: Any = None
+    # contour: Any = None
     box: Optional[Sequence[int]] = None
-    classification: str = "unc"
     active: bool = False
     group: int = 0
 
 
 class ContourContainer:
-    """Container to look up contour rectangles by classification or point
+    """Container to look up contour rectangles by group or point
 
     Contours are stored as x, y, w, h. X, Y of the bottom left point, w = width, h = height
     Goal is to have an initial, simple implementation, and then add in tests and more efficiency
@@ -32,14 +31,13 @@ class ContourContainer:
         self.min_size = [min_width, min_height]
         self.max_group = 0
 
-    def add(self, contour, classification="unc"):
-        assert(classification == "unc" or classification in string.ascii_lowercase,
-               f"Illegal classification of {classification}")
-        rect = boundingRect(contour)
+    def add(self, contour=None, rect=None, group=0):
+        if contour is not None:
+            rect = boundingRect(contour)
         if rect[2] < self.min_size[0] or rect[3] < self.min_size[1]:
-            print(f"Contour is too small")
+            # print(f"Contour is too small")
             return
-        self.contours.append(ContourElement(box=rect, contour=contour, classification=classification))
+        self.contours.append(ContourElement(box=rect, group=group))
 
     def remove(self, index: int):
         assert(index < len(self.contours), f"Subtracting illegal index of {index} from contours length {len(self.contours)}")
@@ -61,25 +59,26 @@ class ContourContainer:
                 return index
         return -1
 
-    def get_box(self, x_in: int, y_in: int) -> Sequence[int]:
-        index = self.get_index_by_point(x_in, y_in)
+    def get_box(self, x_in: Optional[int]=None, y_in: Optional[int]=None, index: Optional[int] = None) -> Sequence[int]:
+        if index is None:
+            index = self.get_index_by_point(x_in, y_in)
         if index < 0:
             raise ContourNotFound(message=f"No contour found at {x_in}, {y_in}")
         return self.contours[index].box
 
-    def classify(self, classification: string="unc", index: Optional[int]=None, x_in: Optional[int]=None,
-                 y_in: Optional[int]=None, all=False) -> None:
+    def group(self, group: int, index: Optional[int]=None, x_in: Optional[int]=None,
+              y_in: Optional[int]=None, all=False) -> None:
         if all:
             for contour in self.contours:
-                contour.classification = classification
+                contour.group = group
             return
         if index is None:
             if x_in is None or y_in is None:
                 assert(False, f"Classify called with no parameters")
             index = self.get_index_by_point(x_in, y_in)
-        self.contours[index].classification = classification
+        self.contours[index].group = group
 
-    def get_boxes(self, classification: Optional[str]=None, active: Optional[bool]=None, all: bool=False):
+    def get_boxes(self, group: Optional[int]=None, active: Optional[bool]=None, all: bool=False):
         if all:
             for contour in self.contours:
                 yield contour.box
@@ -88,27 +87,60 @@ class ContourContainer:
             for box in [x.box for x in self.contours if x.active==active]:
                 yield box
             return
-        if classification is not None:
-            for box in [x.box for x in self.contours if x.classification == classification]:
+        if group is not None:
+            for box in [x.box for x in self.contours if x.group == group]:
                 yield box
 
     def save(self, filename: str):
+        contours_out = [dataclasses.asdict(x) for x in self.contours]
         with open(filename, 'w+') as fp:
-            fp.write(json.dumps(self.__dict__))
+            fp.write(json.dumps(self.min_size)+'\n')
+            fp.write(json.dumps(contours_out))
 
     def load(self, filename: str):
         with open(filename, 'r') as fp:
-            output = json.load(fp)
-        print(output)
+            self.min_size = json.loads(fp.readline())
+            contours_json = json.loads(fp.readline())
+        self.contours = [ContourElement(box=x['box'], group=x['group']) for x in contours_json]
 
-    def select_boxes(self, x_in: int=None, y_in: int=None):
-        index = self.get_index_by_point(x_in, y_in)
+    def select_boxes(self, x_in: int=None, y_in: int=None, group=None, index: Optional[int]=None):
+        if group is not None:
+            indices = [i for i, x in enumerate(self.contours) if x.group==group]
+            for i in indices:
+                self.contours[i].active = True
+            return
+        if index is None:
+            index = self.get_index_by_point(x_in, y_in)
         self.contours[index].active = True
 
-    def unselect_boxes(self, x_in: int=None, y_in: int=None, all=False):
+    def unselect_boxes(self, x_in: int=None, y_in: int=None, all=False, index=None):
         if all:
             for contour in self.contours:
                 contour.active = False
             return
-        index = self.get_index_by_point(x_in, y_in)
+        if index is None:
+            index = self.get_index_by_point(x_in, y_in)
         self.contours[index].active = False
+
+    @property
+    def length(self):
+        return len(self.contours)
+
+    def get_group(self, index: int = None, selected: Optional[bool]=None) -> int:
+        if selected is not None:
+            for contour in self.contours:
+                if contour.active:
+                    return contour.group
+        if index is not None:
+            return self.contours[index].group
+        return -1
+
+    def set_group(self, setting: int, index: int = None, all=False):
+        if setting > self.max_group:
+            self.max_group = setting
+        if all:
+            for contour in self.contours:
+                contour.group = setting
+        if index is not None:
+            self.contours[index].group = setting
+            return
